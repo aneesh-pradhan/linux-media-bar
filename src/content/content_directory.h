@@ -17,6 +17,9 @@ public:
                                 std::uint32_t starting_index,
                                 std::uint32_t requested_count) const;
 
+    bool resolve_media_path(const std::string& encoded_relative,
+                            std::filesystem::path& path) const;
+
 private:
     std::string browse_didl(const std::string& object_id, const std::string& browse_flag,
                             std::uint32_t starting_index, std::uint32_t requested_count,

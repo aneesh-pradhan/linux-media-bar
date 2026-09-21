@@ -25,8 +25,10 @@ int main(int argc, char** argv) {
             config.ssdp_port = static_cast<std::uint16_t>(std::stoul(argv[++i]));
         } else if (argument == "--http-port" && i + 1 < argc) {
             config.http_port = static_cast<std::uint16_t>(std::stoul(argv[++i]));
+        } else if (argument == "--media-root" && i + 1 < argc) {
+            config.media_root = argv[++i];
         } else if (argument == "--help") {
-            std::cout << "Usage: linux-media-bar [--ssdp-port PORT] [--http-port PORT]\n";
+            std::cout << "Usage: linux-media-bar [--ssdp-port PORT] [--http-port PORT] [--media-root PATH]\n";
             return EXIT_SUCCESS;
         } else {
             std::cerr << "Unknown argument: " << argument << '\n';

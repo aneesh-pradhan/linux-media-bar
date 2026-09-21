@@ -12,6 +12,7 @@ struct SsdpConfig {
     std::string bind_address = "192.168.1.66";
     std::uint16_t ssdp_port = 1900;
     std::uint16_t http_port = 5001;
+    std::string media_root = "/home/aneeshpradhan/Videos";
     std::string friendly_name = "Aneesh Anime Server";
     std::string uuid = "b8f32da0-4f80-4d0c-a376-9b4f8dbb6b01";
 };

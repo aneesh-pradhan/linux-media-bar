@@ -48,6 +48,11 @@ bool is_video_file(const std::filesystem::path& path) {
            extension == ".m2ts" || extension == ".ts";
 }
 
+bool needs_transcoding(const std::filesystem::path& path) {
+    const std::string extension = path.extension().string();
+    return extension != ".mp4";
+}
+
 std::string display_name(const std::filesystem::path& path) {
     return path.filename().string();
 }
@@ -55,7 +60,46 @@ std::string display_name(const std::filesystem::path& path) {
 } // namespace
 
 ContentDirectory::ContentDirectory(const network::SsdpConfig& config)
-    : config_(config), media_root_(std::filesystem::path("/home/aneeshpradhan/Videos")) {}
+    : config_(config), media_root_(std::filesystem::path(config.media_root)) {}
+
+bool ContentDirectory::resolve_media_path(const std::string& encoded_relative,
+                                          std::filesystem::path& path) const {
+    std::string decoded;
+    for (std::size_t i = 0; i < encoded_relative.size(); ++i) {
+        if (encoded_relative[i] == '%' && i + 2 < encoded_relative.size()) {
+            const auto hex_value = [](char character) -> int {
+                if (character >= '0' && character <= '9') return character - '0';
+                if (character >= 'A' && character <= 'F') return character - 'A' + 10;
+                if (character >= 'a' && character <= 'f') return character - 'a' + 10;
+                return -1;
+            };
+            const int high = hex_value(encoded_relative[i + 1]);
+            const int low = hex_value(encoded_relative[i + 2]);
+            if (high < 0 || low < 0) return false;
+            decoded += static_cast<char>((high << 4) | low);
+            i += 2;
+        } else {
+            decoded += encoded_relative[i];
+        }
+    }
+    const std::filesystem::path relative(decoded);
+    if (decoded.empty() || relative.is_absolute() ||
+        std::find(relative.begin(), relative.end(), "..") != relative.end()) {
+        return false;
+    }
+
+    std::error_code error;
+    const auto root = std::filesystem::weakly_canonical(media_root_, error);
+    const auto candidate = std::filesystem::weakly_canonical(media_root_ / relative, error);
+    const auto relative_candidate = candidate.lexically_relative(root);
+    if (error || relative_candidate.empty() || relative_candidate.is_absolute() ||
+        std::find(relative_candidate.begin(), relative_candidate.end(), "..") != relative_candidate.end() ||
+        !std::filesystem::is_regular_file(candidate, error)) {
+        return false;
+    }
+    path = candidate;
+    return true;
+}
 
 std::string ContentDirectory::encode_id(const std::string& kind,
                                         const std::filesystem::path& relative) const {
@@ -176,11 +220,16 @@ std::string ContentDirectory::browse_didl(const std::string& object_id, const st
                  << "\" restricted=\"1\"><dc:title>" << xml_escape(entry.title)
                  << "</dc:title><upnp:class>object.container.storageFolder</upnp:class></container>";
         } else {
+            const std::filesystem::path entry_path = media_root_ / std::filesystem::path(entry.id.substr(5));
+            const std::string endpoint = needs_transcoding(entry_path) ? "/transcode/" : "/media/";
+            const std::string protocol = needs_transcoding(entry_path)
+                ? "video/mpeg" : "video/mp4";
             const std::string url = "http://" + config_.bind_address + ":" + std::to_string(config_.http_port) +
-                                    "/media/" + percent_encode(entry.id.substr(5));
+                                    endpoint + percent_encode(entry.id.substr(5));
             didl << "<item id=\"" << xml_escape(entry.id) << "\" parentID=\"" << xml_escape(object_id)
                  << "\" restricted=\"1\"><dc:title>" << xml_escape(entry.title)
-                 << "</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"http-get:*:video/x-matroska:*\" size=\""
+                 << "</dc:title><upnp:class>object.item.videoItem</upnp:class><res protocolInfo=\"http-get:*:"
+                 << protocol << ":*\" size=\""
                  << entry.size << "\">" << xml_escape(url) << "</res></item>";
         }
     }

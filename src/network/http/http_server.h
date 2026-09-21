@@ -4,6 +4,8 @@
 #include "network/ssdp/ssdp_server.h"
 
 #include <atomic>
+#include <filesystem>
+#include <string>
 
 namespace lmb::network {
 
@@ -20,6 +22,9 @@ public:
 
 private:
     void handle_client(int client_fd);
+    void handle_media(int client_fd, const std::string& method, const std::string& path,
+                      const std::string& range);
+    void handle_transcode(int client_fd, const std::string& method, const std::string& path);
 
     SsdpConfig config_;
     content::ContentDirectory content_directory_;
